@@ -1,6 +1,6 @@
 # 📊 Análisis y Evaluación — Asistente de Compras Tipti
 
-> Análisis abordado desde **Ingeniería Industrial aplicada al ecommerce**, con tres ejes: optimización de procesos, calidad de servicio y experiencia del cliente.
+> Análisis abordado desde **Ingeniería Industrial aplicada al ecommerce**, con tres ejes: optimización de procesos, calidad de servicio y experiencia del cliente. El criterio no fue solo si el asistente respondió bien, sino si cada interacción preserva la credibilidad del sistema y la confianza del usuario — porque en alto volumen, cada conversación es una venta, una retención o un abandono. Las mejoras propuestas apuntan a convertir al asistente en un **asesor de compra inteligente** que anticipa, optimiza y siempre devuelve la decisión final al cliente.
 
 ---
 
@@ -53,7 +53,7 @@ El asistente rechazó correctamente. Los 3 tipos de pregunta adicionales que deb
 
 ### C4 — Gestión de presupuesto
 
-El asistente debe seguir este protocolo:
+El asistente no puede calcular el impacto exacto porque el cliente no especificó cantidad ni presentación. Debe seguir este protocolo:
 
 | Paso | Acción |
 |------|--------|
@@ -112,27 +112,31 @@ El asistente debe seguir este protocolo:
 
 | # | Tipo | Mensaje del cliente | Respuesta esperada | Cómo verificarías |
 |---|------|--------------------|--------------------|-------------------|
-| 1 | Happy path | ¿Tienen avena? | Menciona 'Avena instantánea 500g' con precio | Nombre y precio coincidan con catálogo |
-| 2 | Sin stock | Quiero tomates cherry | No menciona el producto, ofrece alternativa vegetal | Producto requerido no aparece en respuesta |
-| 3 | Pregunta ambigua | Quiero algo rico para el desayuno | Pide clarificación o sugiere categorías reales | No asume ni inventa productos |
-| 4 | Presentaciones distintas | ¿Tienen leche? | Muestra todas las presentaciones disponibles | Todas las variantes existen en catálogo |
-| 5 | Presupuesto muy bajo | Quiero desayuno con $1 | Informa honestamente que no alcanza | No inventa productos baratos inexistentes |
-| 6 | Otro idioma | I want to buy some milk please | Responde en inglés con productos disponibles | Detectó idioma y productos existen |
+| 1 | Happy path | ¿Tienen avena? | Sí, menciona 'Avena instantánea 500g' con su precio | Verificar que nombre y precio coincidan con el catálogo |
+| 2 | Sin stock | Quiero tomates cherry (o algún producto que no exista) | No menciona que el producto requerido no existe, ofrece alternativa de frutas o verduras disponibles | Verificar que el producto requerido no aparezca en la respuesta |
+| 3 | Pregunta ambigua | Quiero algo rico para el desayuno | El asistente pide clarificación o sugiere categorías: lácteos, cereales, panadería | Verificar que no asuma ni invente — debe preguntar o mostrar categorías reales del catálogo |
+| 4 | Presentaciones distintas | ¿Tienen leche? | Muestra todas las presentaciones disponibles: entera, descremada, 1L, 2L con sus precios | Verificar que todas las variantes mostradas existan en el catálogo y ninguna esté agotada |
+| 5 | Presupuesto muy bajo | Quiero armar un desayuno con $1 | Informa honestamente que con $1 no alcanza para un desayuno completo y sugiere el producto más económico disponible | Verificar que no invente productos baratos inexistentes y que el precio sugerido sea real |
+| 6 | Mensaje en otro idioma | I want to buy some milk please | Responde en inglés con los productos disponibles de leche y sus precios | Verificar que detectó el idioma, respondió en inglés y los productos existen en el catálogo |
 
 ---
 
 ### 3.2 Criterio de aprobación
 
-**¿Cuándo está listo?** → Mínimo **90% de casos aprobados** antes de producción.
+**a. ¿Cuándo el asistente está listo?**
 
-**Respuesta correcta para "¿Tienen salmón?":**
+La empresa quiere lanzar el asistente cuando "funcione bien". El asistente debe aprobar mínimo el **90% de los casos de prueba** antes de salir a producción. El 10% restante puede corresponder a casos edge o ambiguos que se resuelven en iteraciones posteriores. En ecommerce de alto volumen, lanzar con menos del 90% representa un riesgo operativo y reputacional inaceptable — cada conversación fallida es un cliente potencialmente perdido.
 
-| ✅ Correcto | ❌ Incorrecto |
-|------------|--------------|
-| Busca en catálogo real antes de responder | Recomienda salmón con precio inventado |
-| Si existe: nombre exacto + precio vigente | Dice que no hay sin haber buscado |
-| Si no existe: informa honestamente | Sugiere alternativas que tampoco existen |
-| Ofrece alternativas reales de la misma categoría | No ofrece alternativa cuando sí las hay |
+**b. ¿Cómo defines respuesta correcta vs incorrecta?**
+
+Para la pregunta *"¿Tienen salmón?"* una respuesta es:
+
+| ✅ Correcta si... | ❌ Incorrecta si... |
+|------------------|-------------------|
+| Busca en el catálogo real antes de responder | Recomienda salmón con precio inventado sin verificar |
+| Si existe: muestra nombre exacto + precio vigente | Dice que no hay sin haber buscado realmente |
+| Si no existe: informa honestamente sin inventar | Sugiere alternativas que tampoco existen en el catálogo |
+| Ofrece alternativas reales de la misma categoría | No ofrece alternativa cuando sí hay productos similares |
 
 ---
 
