@@ -24,6 +24,11 @@ Busca productos en el catálogo según texto libre del cliente con palabras rela
 ### build_cart
 Arma un carrito con productos por ID, calcula el total y avisa si se supera el presupuesto.
 
+### mini_flujo — Punto 2.3
+Función simple que recibe el mensaje del cliente, llama a search_products y retorna un texto de respuesta con los productos encontrados o un mensaje si no hay resultados.
+
+> El punto 2.3 se implementó con la función simple mini_flujo() y adicionalmente se desarrolló un agente completo con LangGraph que extiende esta lógica con clasificación de intención, manejo de presupuesto y routing inteligente.
+
 ### Agente LangGraph con Routing
 - 🧠 Nodo 1 — Clasifica la intención: saludo, compra, presupuesto, fuera de scope
 - 🔍 Nodo 2 — Busca productos y filtra por presupuesto si aplica
