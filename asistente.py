@@ -32,7 +32,7 @@ palabras_relacionadas = {
 # ============================================
 class EstadoAgente(TypedDict):
     mensaje: str
-    intencion: str        # saludo, compra, presupuesto, fuera_scope
+    intencion: str
     productos: List[dict]
     presupuesto: Optional[float]
     respuesta: str
@@ -77,7 +77,6 @@ def build_cart(product_ids: list, catalogo: list, budget: float = None) -> dict:
     return resultado
 
 def extraer_presupuesto(mensaje: str) -> Optional[float]:
-    # Busca un número después de $ en el mensaje
     if "$" in mensaje:
         try:
             parte = mensaje.split("$")[-1]
@@ -94,17 +93,29 @@ def extraer_presupuesto(mensaje: str) -> Optional[float]:
     return None
 
 # ============================================
-# NODOS DEL AGENTE
+# 2.3 MINI FLUJO SIMPLE (requerimiento base)
 # ============================================
+def mini_flujo(mensaje: str) -> str:
+    """
+    Función simple que recibe el mensaje del cliente,
+    llama a search_products y retorna texto de respuesta.
+    """
+    productos = search_products(mensaje, catalogo)
+    if len(productos) == 0:
+        return "Lo siento, no encontré productos relacionados. ¿Puedo ayudarte con algo más?"
+    respuesta = "Encontré estos productos para ti:\n"
+    for p in productos:
+        respuesta += f"- {p['nombre']} a ${p['precio']}\n"
+    return respuesta
 
-# Nodo 1 - Clasificar intención
+# ============================================
+# NODOS DEL AGENTE LANGGRAPH
+# ============================================
 def nodo_clasificar(estado: EstadoAgente) -> EstadoAgente:
     print("🧠 Clasificando intención...")
     mensaje = estado["mensaje"].lower()
-    
     saludos = ["hola", "buenos", "buenas", "hey", "hi", "buen dia"]
     fuera_scope = ["pedido", "envio", "devolucion", "reembolso", "cuando llega"]
-    
     if any(s in mensaje for s in saludos):
         intencion = "saludo"
     elif any(f in mensaje for f in fuera_scope):
@@ -113,49 +124,36 @@ def nodo_clasificar(estado: EstadoAgente) -> EstadoAgente:
         intencion = "presupuesto"
     else:
         intencion = "compra"
-    
     presupuesto = extraer_presupuesto(estado["mensaje"])
-    
     return {"intencion": intencion, "presupuesto": presupuesto}
 
-# Nodo 2 - Buscar productos
 def nodo_buscar(estado: EstadoAgente) -> EstadoAgente:
     print("🔍 Buscando productos...")
     productos = search_products(estado["mensaje"], catalogo)
-    
-    # Si hay presupuesto filtra productos dentro del presupuesto
     if estado.get("presupuesto"):
         productos = [p for p in productos if p["precio"] <= estado["presupuesto"]]
-    
     return {"productos": productos}
 
-# Nodo 3 - Generar respuesta
 def nodo_responder(estado: EstadoAgente) -> EstadoAgente:
     print("💬 Generando respuesta...")
     intencion = estado["intencion"]
-    
     if intencion == "saludo":
         respuesta = "¡Hola! Soy el asistente de compras de Tipti 🛒 ¿En qué puedo ayudarte hoy?"
-    
     elif intencion == "fuera_scope":
         respuesta = "Entiendo tu consulta, pero no tengo acceso a esa información. Te recomiendo contactar a nuestro equipo de soporte para ayudarte mejor 😊"
-    
     elif intencion in ["compra", "presupuesto"]:
         productos = estado["productos"]
         presupuesto = estado.get("presupuesto")
-        
         if len(productos) == 0:
-            respuesta = "Lo siento, no encontré productos relacionados con tu búsqueda. ¿Puedo ayudarte con algo más? 😊"
+            respuesta = "Lo siento, no encontré productos relacionados. ¿Puedo ayudarte con algo más? 😊"
         else:
             if presupuesto:
                 respuesta = f"¡Perfecto! Con tu presupuesto de ${presupuesto}, encontré estas opciones:\n"
             else:
                 respuesta = "¡Hola! Encontré estos productos para ti:\n"
-            
             for p in productos:
                 respuesta += f"- {p['nombre']} a ${p['precio']}\n"
             respuesta += "¿Te agrego alguno al carrito? 😊"
-    
     return {"respuesta": respuesta}
 
 # ============================================
@@ -163,57 +161,55 @@ def nodo_responder(estado: EstadoAgente) -> EstadoAgente:
 # ============================================
 def crear_agente():
     grafo = StateGraph(EstadoAgente)
-    
-    # Agregamos nodos
     grafo.add_node("clasificar", nodo_clasificar)
     grafo.add_node("buscar", nodo_buscar)
     grafo.add_node("responder", nodo_responder)
-    
-    # Punto de entrada
     grafo.set_entry_point("clasificar")
-    
-    # Routing inteligente según intención
     def routing(estado):
         if estado["intencion"] in ["saludo", "fuera_scope"]:
             return "responder"
         return "buscar"
-    
     grafo.add_conditional_edges("clasificar", routing)
     grafo.add_edge("buscar", "responder")
     grafo.add_edge("responder", END)
-    
     return grafo.compile()
 
 # ============================================
 # PRUEBAS
 # ============================================
 agente = crear_agente()
-
 estado_inicial = {"mensaje": "", "intencion": "", "productos": [], "presupuesto": None, "respuesta": ""}
 
 print("=" * 50)
-print("PRUEBA 1 - Saludo")
+print("PRUEBA 2.3 — Mini flujo simple")
+print("=" * 50)
+mensaje_prueba = "Quiero algo vegetariano para el almuerzo, tengo $15"
+print(f"Cliente: {mensaje_prueba}")
+print(f"Asistente: {mini_flujo(mensaje_prueba)}")
+
+print("=" * 50)
+print("PRUEBA 1 — Saludo")
 print("=" * 50)
 r = agente.invoke({**estado_inicial, "mensaje": "Hola!"})
 print(f"Cliente: Hola!")
 print(f"Asistente: {r['respuesta']}")
 
 print("=" * 50)
-print("PRUEBA 2 - Búsqueda con presupuesto")
+print("PRUEBA 2 — Búsqueda con presupuesto")
 print("=" * 50)
 r = agente.invoke({**estado_inicial, "mensaje": "Quiero algo vegetariano para el almuerzo, tengo $15"})
 print(f"Cliente: Quiero algo vegetariano para el almuerzo, tengo $15")
 print(f"Asistente: {r['respuesta']}")
 
 print("=" * 50)
-print("PRUEBA 3 - Fuera de scope")
+print("PRUEBA 3 — Fuera de scope")
 print("=" * 50)
 r = agente.invoke({**estado_inicial, "mensaje": "¿Cuándo llega mi pedido?"})
 print(f"Cliente: ¿Cuándo llega mi pedido?")
 print(f"Asistente: {r['respuesta']}")
 
 print("=" * 50)
-print("PRUEBA 4 - Carrito con presupuesto")
+print("PRUEBA 4 — Carrito con presupuesto")
 print("=" * 50)
 carrito = build_cart(["P001", "P002", "P003"], catalogo, budget=10.0)
 print("Carrito:")
