@@ -1,30 +1,84 @@
 import random
 from typing import TypedDict, List, Optional
 from langgraph.graph import StateGraph, END
+from datasets import load_dataset
 
 # ============================================
-# CATALOGO DE PRODUCTOS
+# CARGAR DATASET REAL DE HUGGING FACE
 # ============================================
-catalogo = [
-    {"id": "P001", "nombre": "Leche entera 1L", "categoria": "Lacteos", "precio": round(random.uniform(0.50, 5.00), 2)},
-    {"id": "P002", "nombre": "Pan integral 500g", "categoria": "Panaderia", "precio": round(random.uniform(0.50, 5.00), 2)},
-    {"id": "P003", "nombre": "Huevos 12 unidades", "categoria": "Lacteos", "precio": round(random.uniform(1.00, 5.00), 2)},
-    {"id": "P004", "nombre": "Avena instantanea 500g", "categoria": "Cereales", "precio": round(random.uniform(0.50, 4.00), 2)},
-    {"id": "P005", "nombre": "Mantequilla 200g", "categoria": "Lacteos", "precio": round(random.uniform(1.00, 4.00), 2)}
-]
+print("⏳ Cargando dataset de Hugging Face...")
+
+dataset = load_dataset(
+    "openfoodfacts/product-database",
+    split="food",
+    streaming=True
+)
+
+productos_raw = []
+count = 0
+for item in dataset:
+    if count >= 500:
+        break
+    lang = item.get("lang", "")
+    if lang in ["es", "en", "fr"]:
+        productos_raw.append(item)
+        count += 1
+
+print(f"✅ Dataset cargado: {len(productos_raw)} productos")
+
+# ============================================
+# CONSTRUIR CATÁLOGO CON CAMPOS OBLIGATORIOS
+# ============================================
+def construir_catalogo(productos_raw):
+    catalogo = []
+    for p in productos_raw:
+        nutriments = p.get("nutriments", {})
+        if not isinstance(nutriments, dict):
+            nutriments = {}
+
+        producto = {
+            "code": str(p.get("code", "")),
+            "brands": str(p.get("brands", "")),
+            "brands_tags": p.get("brands_tags", []) if isinstance(p.get("brands_tags"), list) else [],
+            "categories": str(p.get("categories", "")),
+            "categories_tags": p.get("categories_tags", []) if isinstance(p.get("categories_tags"), list) else [],
+            "ingredients_text": str(p.get("ingredients_text", "")),
+            "traces": str(p.get("traces", "")),
+            "traces_tags": p.get("traces_tags", []) if isinstance(p.get("traces_tags"), list) else [],
+            "lang": str(p.get("lang", "")),
+            "languages_tags": p.get("languages_tags", []) if isinstance(p.get("languages_tags"), list) else [],
+            "nutriments": {
+                "salt_value": nutriments.get("salt_value", ""),
+                "salt_unit": nutriments.get("salt_unit", "g"),
+                "fat_value": nutriments.get("fat_value", ""),
+                "fat_unit": nutriments.get("fat_unit", "g"),
+                "energy_value": nutriments.get("energy_value", ""),
+                "energy_unit": nutriments.get("energy_unit", "kcal"),
+                "proteins_value": nutriments.get("proteins_value", ""),
+                "proteins_unit": nutriments.get("proteins_unit", "g"),
+                "carbohydrates_value": nutriments.get("carbohydrates_value", ""),
+                "carbohydrates_unit": nutriments.get("carbohydrates_unit", "g"),
+            },
+            "price": round(random.uniform(0.50, 50.00), 2)
+        }
+        catalogo.append(producto)
+    return catalogo
+
+catalogo = construir_catalogo(productos_raw)
+print(f"✅ Catálogo construido: {len(catalogo)} productos con columna Price ($0.50 - $50.00)")
 
 # ============================================
 # PALABRAS RELACIONADAS
 # ============================================
 palabras_relacionadas = {
-    "desayuno": ["lacteos", "cereales", "panaderia"],
-    "vegetariano": ["lacteos", "cereales", "panaderia"],
-    "almuerzo": ["lacteos", "cereales"],
-    "leche": ["leche"],
-    "pan": ["pan"],
-    "huevo": ["huevo"],
-    "avena": ["avena"],
-    "mantequilla": ["mantequilla"]
+    "desayuno": ["cereal", "bread", "milk", "dairy", "oat"],
+    "vegetariano": ["vegetable", "fruit", "cereal", "vegetal"],
+    "almuerzo": ["meat", "fish", "vegetable", "chicken"],
+    "leche": ["milk", "dairy"],
+    "pan": ["bread"],
+    "huevo": ["egg"],
+    "avena": ["oat", "cereal"],
+    "mantequilla": ["butter", "dairy"]
 }
 
 # ============================================
@@ -41,39 +95,61 @@ class EstadoAgente(TypedDict):
 # FUNCIONES PRINCIPALES
 # ============================================
 def search_products(query: str, catalogo: list) -> list:
+    """
+    Recibe una búsqueda en texto libre del cliente
+    y retorna los productos relevantes del catálogo.
+    """
     query = query.lower()
     resultados = []
+
     for producto in catalogo:
-        if query in producto["nombre"].lower() or query in producto["categoria"].lower():
+        nombre = str(producto.get("brands", "")).lower()
+        categoria = str(producto.get("categories", "")).lower()
+        ingredientes = str(producto.get("ingredients_text", "")).lower()
+
+        if query in nombre or query in categoria or query in ingredientes:
             if producto not in resultados:
                 resultados.append(producto)
+
     for palabra, relacionadas in palabras_relacionadas.items():
         if palabra in query:
             for termino in relacionadas:
                 for producto in catalogo:
-                    if termino in producto["nombre"].lower() or termino in producto["categoria"].lower():
+                    nombre = str(producto.get("brands", "")).lower()
+                    categoria = str(producto.get("categories", "")).lower()
+                    if termino in nombre or termino in categoria:
                         if producto not in resultados:
                             resultados.append(producto)
-    return resultados
 
-def build_cart(product_ids: list, catalogo: list, budget: float = None) -> dict:
+    return resultados[:10]
+
+def build_cart(product_codes: list, catalogo: list, budget: float = None) -> dict:
+    """
+    Arma un carrito con los productos indicados.
+    Retorna un dict con items y total.
+    """
     items = []
     total = 0
-    for pid in product_ids:
+
+    for code in product_codes:
         for producto in catalogo:
-            if producto["id"] == pid:
+            if producto["code"] == code:
                 items.append({
-                    "id": producto["id"],
-                    "nombre": producto["nombre"],
-                    "precio": producto["precio"]
+                    "code": producto["code"],
+                    "brands": producto["brands"],
+                    "categories": producto["categories"],
+                    "price": producto["price"]
                 })
-                total = round(total + producto["precio"], 2)
+                total = round(total + producto["price"], 2)
+
     resultado = {"items": items, "total": total}
+
     if budget is not None:
         if total > budget:
             resultado["alerta"] = f"⚠️ Presupuesto superado! Total ${total} supera el límite de ${budget}"
         else:
             resultado["alerta"] = f"✅ Dentro del presupuesto! Te sobran ${round(budget - total, 2)}"
+
     return resultado
 
 def extraer_presupuesto(mensaje: str) -> Optional[float]:
@@ -93,19 +169,25 @@ def extraer_presupuesto(mensaje: str) -> Optional[float]:
     return None
 
 # ============================================
-# 2.3 MINI FLUJO SIMPLE (requerimiento base)
+# 2.3 MINI FLUJO SIMPLE
 # ============================================
 def mini_flujo(mensaje: str) -> str:
     """
     Función simple que recibe el mensaje del cliente,
     llama a search_products y retorna texto de respuesta.
+    El punto 2.3 se implementó con esta función simple y
+    adicionalmente se desarrolló un agente completo con
+    LangGraph que extiende esta lógica con clasificación
+    de intención, manejo de presupuesto y routing inteligente.
     """
     productos = search_products(mensaje, catalogo)
     if len(productos) == 0:
         return "Lo siento, no encontré productos relacionados. ¿Puedo ayudarte con algo más?"
     respuesta = "Encontré estos productos para ti:\n"
-    for p in productos:
-        respuesta += f"- {p['nombre']} a ${p['precio']}\n"
+    for p in productos[:5]:
+        marca = p['brands'] if p['brands'] else "Sin marca"
+        categoria = p['categories'][:50] if p['categories'] else "Sin categoría"
+        respuesta += f"- {marca} ({categoria}) a ${p['price']}\n"
     return respuesta
 
 # ============================================
@@ -131,7 +213,7 @@ def nodo_buscar(estado: EstadoAgente) -> EstadoAgente:
     print("🔍 Buscando productos...")
     productos = search_products(estado["mensaje"], catalogo)
     if estado.get("presupuesto"):
-        productos = [p for p in productos if p["precio"] <= estado["presupuesto"]]
+        productos = [p for p in productos if p["price"] <= estado["presupuesto"]]
     return {"productos": productos}
 
 def nodo_responder(estado: EstadoAgente) -> EstadoAgente:
@@ -140,7 +222,7 @@ def nodo_responder(estado: EstadoAgente) -> EstadoAgente:
     if intencion == "saludo":
         respuesta = "¡Hola! Soy el asistente de compras de Tipti 🛒 ¿En qué puedo ayudarte hoy?"
     elif intencion == "fuera_scope":
-        respuesta = "Entiendo tu consulta, pero no tengo acceso a esa información. Te recomiendo contactar a nuestro equipo de soporte para ayudarte mejor 😊"
+        respuesta = "Entiendo tu consulta, pero no tengo acceso a esa información. Te recomiendo contactar a nuestro equipo de soporte 😊"
     elif intencion in ["compra", "presupuesto"]:
         productos = estado["productos"]
         presupuesto = estado.get("presupuesto")
@@ -151,13 +233,15 @@ def nodo_responder(estado: EstadoAgente) -> EstadoAgente:
                 respuesta = f"¡Perfecto! Con tu presupuesto de ${presupuesto}, encontré estas opciones:\n"
             else:
                 respuesta = "¡Hola! Encontré estos productos para ti:\n"
-            for p in productos:
-                respuesta += f"- {p['nombre']} a ${p['precio']}\n"
+            for p in productos[:5]:
+                marca = p['brands'] if p['brands'] else "Sin marca"
+                categoria = p['categories'][:50] if p['categories'] else "Sin categoría"
+                respuesta += f"- {marca} ({categoria}) a ${p['price']}\n"
             respuesta += "¿Te agrego alguno al carrito? 😊"
     return {"respuesta": respuesta}
 
 # ============================================
-# CONSTRUIR EL AGENTE CON ROUTING
+# CONSTRUIR AGENTE CON ROUTING
 # ============================================
 def crear_agente():
     grafo = StateGraph(EstadoAgente)
@@ -180,7 +264,7 @@ def crear_agente():
 agente = crear_agente()
 estado_inicial = {"mensaje": "", "intencion": "", "productos": [], "presupuesto": None, "respuesta": ""}
 
-print("=" * 50)
+print("\n" + "=" * 50)
 print("PRUEBA 2.3 — Mini flujo simple")
 print("=" * 50)
 mensaje_prueba = "Quiero algo vegetariano para el almuerzo, tengo $15"
@@ -211,9 +295,12 @@ print(f"Asistente: {r['respuesta']}")
 print("=" * 50)
 print("PRUEBA 4 — Carrito con presupuesto")
 print("=" * 50)
-carrito = build_cart(["P001", "P002", "P003"], catalogo, budget=10.0)
-print("Carrito:")
-for item in carrito["items"]:
-    print(f"- {item['nombre']} - ${item['precio']}")
-print(f"Total: ${carrito['total']}")
-print(carrito["alerta"])
+if len(catalogo) >= 3:
+    codes = [catalogo[0]["code"], catalogo[1]["code"], catalogo[2]["code"]]
+    carrito = build_cart(codes, catalogo, budget=10.0)
+    print("Carrito:")
+    for item in carrito["items"]:
+        marca = item['brands'] if item['brands'] else "Sin marca"
+        print(f"- {marca} - ${item['price']}")
+    print(f"Total: ${carrito['total']}")
+    print(carrito["alerta"])
