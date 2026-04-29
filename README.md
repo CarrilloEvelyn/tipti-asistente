@@ -5,7 +5,7 @@ Asistente conversacional de compras construido con Python y LangGraph con routin
 ## 🧠 Tecnologías utilizadas
 - Python 3.14
 - LangGraph — para el flujo del agente con routing
-- Hugging Face — como fuente del catálogo de productos
+- Hugging Face — como fuente del catálogo de productos real
 
 ## 🏗️ Arquitectura del Agente
 
@@ -43,8 +43,11 @@ python -m pip install -r requirements.txt
 python asistente.py
 
 ## 📊 Catálogo
-Basado en el dataset de Hugging Face openfoodfacts/product-database
-Precios generados con valores aleatorios entre $0.50 y $50.00 USD.
+Conectado directamente al dataset real de Hugging Face openfoodfacts/product-database
+- Productos reales filtrados por idioma (es, en, fr)
+- Campos obligatorios: code, brands, brands_tags, categories, categories_tags, ingredients_text, traces, traces_tags
+- Información nutricional: salt, fat, energy, proteins, carbohydrates
+- Columna Price agregada con valores aleatorios entre $0.50 y $50.00 USD
 
 ## 👩‍💻 Autor
 **Evelyn Carrillo**
